@@ -8,7 +8,7 @@ from tkinter.filedialog import askdirectory
 from gui import App
 
 # podaj link do spotify
-def ask_for_playlist_url():
+"""def ask_for_playlist_url():
     while True:
         # url = str(input("Wklej adres url playlisty/ albumu spotify: "))
         # url = 'https://open.spotify.com/track/0E0kxko3i9b5JxxMoGH3At?si=9e5e9349da954dee'  # track
@@ -21,7 +21,7 @@ def ask_for_playlist_url():
             'https://open.spotify.com/album/' in url:
             if '?' in url:
                 url = url.split('?')[0]
-            return url
+            return url"""
 
 
 # pobiera systemową lokalizację folderu Muzyka w Windows
@@ -39,6 +39,18 @@ def ask_for_directory():
 
 # Zwraca szczegółowe informacje o utworach
 def get_tracks_details(url):
+    def exception_handling():
+        if 'track' in url:
+            error_text = "* Nie udało się odnaleść utworu."
+            # print("Nie udało się odnaleść utworu.")
+        elif 'playlist' in url:
+            error_text = "* Nie udało się odnaleść playlisty."
+            # print("Nie udało się odnaleść playlisty.")
+        elif 'album' in url:
+            error_text = "* Nie udało się odnaleść albumu."
+            # print("Nie udało się odnaleść albumu.")
+        app.print_error_message(message=error_text)
+
     # Dane API z Spotify for Developers
     client_id = '21d0ee488daa4a66adbaaaf40c157b40'
     client_secret = 'b3c02482fe9f497d95c9d616f648e642'
@@ -59,17 +71,8 @@ def get_tracks_details(url):
             data = sp.album_tracks(url_id)
         return data
     except Exception as e:
-        if 'track' in url:
-            error_text = "* Nie udało się odnaleść utworu."
-            # print("Nie udało się odnaleść utworu.")
-        elif 'playlist' in url:
-            error_text = "* Nie udało się odnaleść playlisty."
-            # print("Nie udało się odnaleść playlisty.")
-        elif 'album' in url:
-            error_text = "* Nie udało się odnaleść albumu."
-            # print("Nie udało się odnaleść albumu.")
-        app.print_error_message(message=error_text)
-        # return ask_for_playlist_url()
+        return exception_handling()
+
 
 
 # pobiera nowe utwory, te krórych nie ma w playliscie przenosci do "Stare"
@@ -79,13 +82,19 @@ def download_and_modify(playlist, lokalizacja):
         os.chdir(lokalizacja)  # zmiana lokalizacji na Spotify
 
         total = len(to_download)
+        file = open(lokalizacja + '/piosenki.txt', 'w', encoding='utf-8')
         for counter, (track_url, file_name) in enumerate(to_download, start=1):
             print(f'* Pobieranie {counter} z {total}')
+
+
             if os.path.isfile(lokalizacja_stare + file_name):  # jeżeli piosenka znajduje się w "Stare" to przeniesie ją zamiast ppbierać
                 move_to = lokalizacja + '/' + file_name
                 shutil.move(lokalizacja_stare + file_name, move_to)
             else:
+                app.print_status(message=f'* Pobieranie {counter} z {total}')
                 os.system(f'spotdl {track_url}')
+                file.write(f'{track_url}    {file_name}\n')
+        file.close()
 
     def remove(to_remove):
         if not os.path.exists(lokalizacja+'/Stare'):
@@ -121,11 +130,6 @@ def download_and_modify(playlist, lokalizacja):
         old_file = open(lokalizacja+'/piosenki.txt', 'r', encoding='utf-8')
         old_file = [line.strip() for line in old_file.readlines()]  # dzielenie na linie
         old_file = [line.split('    ') for line in old_file]  # dzielenie na url i tytuł
-        file = open(lokalizacja+'/piosenki.txt', 'w', encoding='utf-8')
-
-        for track_author, track_name, track_url in data:  # wspisanie aktualnego stanu piosenek do listy
-            file.write(f'{track_url}    {track_author} - {track_name}\n')
-        file.close()
 
         for track_author, track_name, track_url in data:  # określenie piosenek do pobrania
             if not any(track_url == link[0] for link in old_file):
@@ -141,39 +145,53 @@ def download_and_modify(playlist, lokalizacja):
     len_to_remove = len(to_remove)
     len_to_download = len(to_download)
 
+    message = ['', '', '']
     print('-----  PODSUMOWANIE  -----')
     if len_to_download == 0 and len_to_remove == 0:
         print('* Brak zmian.')
+        app.print_status(message='* Brak zmian.')
     else:
         if len_to_download == 0:
             print('* Brak nowych piosenek.')
+            message[0] = '* Brak nowych piosenek.'
         elif len_to_download == 1:
             print(f'* Pobrano {len_to_download} nową piosenkę.')
+            message[0] = f'* Pobrano {len_to_download} nową piosenkę.'
         elif 1 < len_to_download <= 4:
             print(f'* Pobrano {len_to_download} nowe piosenki.')
+            message[0] = f'* Pobrano {len_to_download} nowe piosenki.'
         elif len_to_download >= 5:
             print(f'* Pobrano {len_to_download} nowych piosenek.')
+            message[0] = f'* Pobrano {len_to_download} nowych piosenek.'
 
         if len_to_remove == 1:
             print(f'* Usunięto {len_to_remove} piosenkę.')
+            message[1] = f'* Usunięto {len_to_remove} piosenkę.'
         elif 1 < len_to_remove <= 4:
             print(f'* Usunięto {len_to_remove} piosenki.')
+            message[1] = f'* Usunięto {len_to_remove} piosenki.'
         elif len_to_remove >= 5:
             print(f'* Usunięto {len_to_remove} piosenek.')
+            message[1] = f'* Usunięto {len_to_remove} piosenek.'
 
-        elapsed_time = end_time - start_time
+        elapsed_time = int(end_time - start_time)
         if elapsed_time < 60:
-            time_unit = "s"
             display_time = elapsed_time
-            print(f"** W czasie: {display_time:.0f}{time_unit}")
+            print(f"** W czasie: {display_time}s")
+            message[2] = f"** W czasie: {display_time}s"
         else:
             if elapsed_time < 3600:
                 time_unit = "m"
-                display_time = elapsed_time / 60
+                display_time = elapsed_time // 60
+                seconds = elapsed_time % 60
             else:
                 time_unit = "h"
-                display_time = elapsed_time / 3600
-            print(f"** W czasie: {display_time:.2f}{time_unit}")
+                display_time = elapsed_time // 3600
+                seconds = elapsed_time % 3600
+            print(f"** W czasie: {display_time}.{seconds}{time_unit}")
+            message[2] = f"** W czasie: {display_time}.{seconds}{time_unit}"
+
+        app.print_status(f'{message[0]}\n{message[1]}\n{message[2]}')
 
 
 def main(path: str, url: str):
@@ -182,7 +200,8 @@ def main(path: str, url: str):
     print(url)
     '''    ^^^ TEST ONLY ^^^    '''
     playlist = get_tracks_details(url)
-    download_and_modify(playlist, path)
+    if playlist:
+        download_and_modify(playlist, path)
 
 
 if __name__ == "__main__":

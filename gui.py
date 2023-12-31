@@ -2,6 +2,7 @@ import tkinter.messagebox
 import customtkinter as ctk
 # from main import get_music_folder_path, ask_for_directory, main
 from os.path import isdir
+from re import match
 
 ctk.set_appearance_mode("Dark")  # Modes: "System" (standard), "Dark", "Light"
 ctk.set_default_color_theme("dark-blue")  # Themes: "blue" (standard), "green", "dark-blue"
@@ -83,16 +84,14 @@ class App(ctk.CTk):
         '''
                 Summary/ important info ------------------------------------------------------------------ - - - - - -- - -- - - -
         '''
-        self.textbox_error = ctk.CTkTextbox(self)
-        """self.textbox_error = ctk.CTkTextbox(master=self,
-                                            width=400,
-                                            height=50,
-                                            corner_radius=0,
-                                            fg_color='transparent',
-                                            bg_color='transparent',
-                                            text_color='white')
-        self.textbox_error.grid(row=0, column=0, padx=(15, 0), pady=(70, 20), sticky="nw")
-        self.textbox_error.insert("0.0", "* Podano bledna lokalizacje")"""
+        self.textbox_status = ctk.CTkTextbox(self)
+        self.textbox_status = ctk.CTkTextbox(master=self,
+                                             width=400,
+                                             height=50,
+                                             corner_radius=0,
+                                             fg_color='transparent',
+                                             bg_color='transparent')
+        self.textbox_status.grid(row=0, rowspan=2, column=0, columnspan=2, padx=(15, 0), pady=(70, 20), sticky="nws")
 
         '''
                 Bottom row (url + execute)
@@ -135,9 +134,9 @@ class App(ctk.CTk):
                 correct_location = False
 
         if url:  # czy url jest poprawny
-            if 'https://open.spotify.com/track/' in url or \
-                    'https://open.spotify.com/playlist/' in url or \
-                    'https://open.spotify.com/album/' in url:
+            if match('https://open\.spotify\.com/track/[^/]+', url) or \
+                    match('https://open\.spotify\.com/playlist/[^/]+', url) or \
+                    match('https://open\.spotify\.com/album/[^/]+', url):
                 if '?' in url:
                     url = url.split('?')[0]
                 correct_url = True
@@ -150,24 +149,21 @@ class App(ctk.CTk):
         #                                  f"loc: {self.location}, url: {url}")
 
         if correct_url and correct_location:  # wszystko ok
-            self.textbox_error.destroy()
-            self.textbox_error = ctk.CTkTextbox(self)
-            # self.print_error_message(message="* ALL GOOD")
+            self.print_error_message(message="* ALL GOOD")
             self.main(self.location, url)
 
 
     def print_error_message(self, message):
-        self.textbox_error.destroy()
-        self.textbox_error = ctk.CTkTextbox(master=self,
-                                            width=400,
-                                            height=50,
-                                            corner_radius=0,
-                                            fg_color='transparent',
-                                            bg_color='transparent',
-                                            text_color='red')
-        self.textbox_error.grid(row=0, column=0, padx=(15, 0), pady=(70, 20), sticky="nw")
-        self.textbox_error.insert("0.0", message)
+        self.textbox_status.delete('1.0', 'end')
+        self.textbox_status.configure(text_color='red')
+        self.textbox_status.insert("0.0", message)
 
+    def print_status(self, message):  # ?????
+        self.textbox_status.delete('1.0', 'end')
+        self.textbox_status.configure(text_color='green')
+        self.textbox_status.insert("0.0", '<<<-   PODSUMOWANIE   ->>>\n\n')
+        self.textbox_status.configure(text_color='white')
+        self.textbox_status.insert('end', message)
 
     def change_placeholder_text(self):
         temp_loc = self.ask_for_directory()
@@ -184,6 +180,7 @@ class App(ctk.CTk):
                                                border_width=2,
                                                corner_radius=20)
             self.entry_location.grid(row=0, column=0, columnspan=2, padx=(20, 0), pady=(33, 20), sticky="new")
+
 
 if __name__ == "__main__":
     app = App()
