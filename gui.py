@@ -1,16 +1,16 @@
 import tkinter.messagebox
 import customtkinter as ctk
-# from main import get_music_folder_path, ask_for_directory, main
+# from main import ask_for_directory, main
 from os.path import isdir
 from re import match
+from getpass import getuser
 
 ctk.set_appearance_mode("Dark")  # Modes: "System" (standard), "Dark", "Light"
 ctk.set_default_color_theme("dark-blue")  # Themes: "blue" (standard), "green", "dark-blue"
 
 class App(ctk.CTk):
-    def __init__(self, get_music_folder_path, ask_for_directory, main):
+    def __init__(self, ask_for_directory, main):
         super().__init__()
-        self.get_music_folder_path = get_music_folder_path
         self.ask_for_directory = ask_for_directory
         self.main = main
         self.location = self.get_music_folder_path()
@@ -180,3 +180,10 @@ class App(ctk.CTk):
                                                border_width=2,
                                                corner_radius=20)
             self.entry_location.grid(row=0, column=0, columnspan=2, padx=(20, 0), pady=(33, 20), sticky="new")
+
+    # pobiera systemow¹ lokalizacjê folderu Muzyka w Windows
+    def get_music_folder_path(self):
+        current_user = getuser()
+        music_folder_path = f'C:/Users/{current_user}/Music/Spotify'
+
+        return music_folder_path

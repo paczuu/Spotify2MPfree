@@ -1,8 +1,7 @@
 import os
-import time
 import shutil
-from getpass import getuser
-import spotipy
+from time import time
+from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
 from tkinter.filedialog import askdirectory
 from gui import App
@@ -22,14 +21,6 @@ from gui import App
             if '?' in url:
                 url = url.split('?')[0]
             return url"""
-
-
-# pobiera systemową lokalizację folderu Muzyka w Windows
-def get_music_folder_path():
-    current_user = getuser()
-    music_folder_path = f'C:/Users/{current_user}/Music/Spotify'
-
-    return music_folder_path
 
 
 # wskaż lokalizacje do zapisania piosenek
@@ -58,7 +49,7 @@ def get_tracks_details(url):
 
     # Inicjalizacja autoryzacji
     client_credentials_manager = SpotifyClientCredentials(client_id=client_id, client_secret=client_secret)
-    sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+    sp = Spotify(client_credentials_manager=client_credentials_manager)
 
     # Pobieranie informacji o playlisty
     url_id = url.split('/')[-1]
@@ -100,7 +91,8 @@ def download_and_modify(playlist, lokalizacja, data_type):
                 os.system(f'spotdl {track_url}')
                 if data_type == 'playlist':
                     file.write(f'{track_url}    {file_name}\n')
-        file.close()
+        if data_type == 'playlist':
+            file.close()
 
     def remove(to_remove):
         if not os.path.exists(lokalizacja+'/Stare'):
@@ -110,7 +102,7 @@ def download_and_modify(playlist, lokalizacja, data_type):
         for file in to_remove:
             shutil.move(file, lokalizacja+'/Stare/'+file)
 
-    start_time = time.time()
+    start_time = time()
 
     if not os.path.exists(lokalizacja):  # czy katalog istnieje
         os.mkdir(lokalizacja)
@@ -168,7 +160,7 @@ def download_and_modify(playlist, lokalizacja, data_type):
         remove(to_remove)
         download(to_download)
 
-    end_time = time.time()
+    end_time = time()
     len_to_remove = len(to_remove)
     len_to_download = len(to_download)
 
@@ -221,23 +213,23 @@ def download_and_modify(playlist, lokalizacja, data_type):
         #app.print_status(f'{message[0]}\n{message[1]}\n{message[2]}')
 
 
-def main():  # path: str, url: str):
+def main(path: str, url: str):  #):  #
     # https://open.spotify.com/playlist/6FS9fW1oI9TKtwnxJtbwRa?si=9585d20479f440f2
     # print(path)
     # print(url)
 
-    playlist, data_type = get_tracks_details("https://open.spotify.com/album/6yiXkzHvC0OTmhfDQOEWtS")
-    lokalizacja = "D:/Pobrane/spot"
-    print(list(playlist))
-    download_and_modify(playlist, lokalizacja, data_type)
+    # playlist, data_type = get_tracks_details("https://open.spotify.com/album/6yiXkzHvC0OTmhfDQOEWtS")
+    # lokalizacja = "D:/Pobrane/spot"
+    # print(list(playlist))
+    # download_and_modify(playlist, lokalizacja, data_type)
 
     '''    ^^^ TEST ONLY ^^^    '''
-    # playlist = get_tracks_details(url)
-    # if playlist:
-    #     download_and_modify(playlist, path)
+    playlist, data_type = get_tracks_details(url)
+    if playlist:
+        download_and_modify(playlist, path, data_type)
 
 
 if __name__ == "__main__":
-    main()
-    # app = App(get_music_folder_path=get_music_folder_path, ask_for_directory=ask_for_directory, main=main)
-    # app.mainloop()
+    # main()
+    app = App(ask_for_directory=ask_for_directory, main=main)
+    app.mainloop()
