@@ -180,8 +180,3 @@ class App(ctk.CTk):
                                                border_width=2,
                                                corner_radius=20)
             self.entry_location.grid(row=0, column=0, columnspan=2, padx=(20, 0), pady=(33, 20), sticky="new")
-
-
-if __name__ == "__main__":
-    app = App()
-    app.mainloop()

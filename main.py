@@ -37,6 +37,7 @@ def ask_for_directory():
     location = askdirectory(title='Wybierz Katalog')  # shows dialog box and return the path
     return location
 
+
 # Zwraca szczegółowe informacje o utworach
 def get_tracks_details(url):
     def exception_handling():
@@ -49,7 +50,7 @@ def get_tracks_details(url):
         elif 'album' in url:
             error_text = "* Nie udało się odnaleść albumu."
             # print("Nie udało się odnaleść albumu.")
-        app.print_error_message(message=error_text)
+        # app.print_error_message(message=error_text)
 
     # Dane API z Spotify for Developers
     client_id = '21d0ee488daa4a66adbaaaf40c157b40'
@@ -64,25 +65,29 @@ def get_tracks_details(url):
     try:
         if 'track' in url:
             data = sp.track(url_id)
-            print(data)
+            data_type = 'track'
         elif 'playlist' in url:
             data = sp.playlist_tracks(url_id)
+            data_type = 'playlist'
         elif 'album' in url:
-            data = sp.album_tracks(url_id)
-        return data
+            data = [[], []]
+            data[0] = sp.album(url_id)['name']  # pobiera nazwe albumu
+            data[1] = sp.album_tracks(url_id)
+            data_type = 'album'
+        return data, data_type
     except Exception as e:
-        return exception_handling()
-
+        return exception_handling(), None
 
 
 # pobiera nowe utwory, te krórych nie ma w playliscie przenosci do "Stare"
-def download_and_modify(playlist, lokalizacja):
+def download_and_modify(playlist, lokalizacja, data_type):
     def download(to_download):
         lokalizacja_stare = lokalizacja + '/Stare/'
         os.chdir(lokalizacja)  # zmiana lokalizacji na Spotify
 
         total = len(to_download)
-        file = open(lokalizacja + '/piosenki.txt', 'w', encoding='utf-8')
+        if data_type == 'playlist':
+            file = open(lokalizacja + '/piosenki.txt', 'w', encoding='utf-8')
         for counter, (track_url, file_name) in enumerate(to_download, start=1):
             print(f'* Pobieranie {counter} z {total}')
 
@@ -91,9 +96,10 @@ def download_and_modify(playlist, lokalizacja):
                 move_to = lokalizacja + '/' + file_name
                 shutil.move(lokalizacja_stare + file_name, move_to)
             else:
-                app.print_status(message=f'* Pobieranie {counter} z {total}')
+                # app.print_status(message=f'* Pobieranie {counter} z {total}')
                 os.system(f'spotdl {track_url}')
-                file.write(f'{track_url}    {file_name}\n')
+                if data_type == 'playlist':
+                    file.write(f'{track_url}    {file_name}\n')
         file.close()
 
     def remove(to_remove):
@@ -102,7 +108,7 @@ def download_and_modify(playlist, lokalizacja):
 
         os.chdir(lokalizacja)  # zmiana lokalizacji na Spotify
         for file in to_remove:
-            shutil.move(file, os.path.join(lokalizacja+'/Stare/', file))
+            shutil.move(file, lokalizacja+'/Stare/'+file)
 
     start_time = time.time()
 
@@ -112,11 +118,32 @@ def download_and_modify(playlist, lokalizacja):
     to_remove = []  # zawiera nazwy plików - [file_name, file_name]
     to_download = []  # zawiera link spotify oraz nazwę pliku - [(track_url, file_name)]
     data = []  # autor, tytuł, link aktualnych piosenek w playliście
-    for track in playlist['items']:
-        track_name = track['track']['name']
-        track_url = track['track']['external_urls']['spotify']
-        track_author = track['track']['artists'][0]['name']
-        data.append([track_author, track_name, track_url])
+    if data_type == 'track':
+        track_name = playlist['name']
+        track_url = playlist['external_urls']['spotify']
+        track_author = playlist['artists'][0]['name']
+        to_download = [(track_url, f'{track_author} - {track_name}.mp3')]
+        return download(to_download)
+
+    elif data_type == 'album':
+        if os.listdir(lokalizacja):  # jeżeli we wskazanym katalogu znajdują się już piosenki tworzymy nowy
+            album_name = playlist[0]
+            lokalizacja += '/'+album_name
+            if not os.path.exists(lokalizacja):  # czy katalog istnieje
+                os.mkdir(lokalizacja)
+        for track in playlist[1]['items']:
+            track_name = track['name']
+            track_url = track['external_urls']['spotify']
+            track_author = track['artists'][0]['name']
+            to_download.append((track_url, f'{track_author} - {track_name}.mp3'))
+        return download(to_download)
+
+    else:  # data_type == 'playlist'
+        for track in playlist['items']:
+            track_name = track['track']['name']
+            track_url = track['track']['external_urls']['spotify']
+            track_author = track['track']['artists'][0]['name']
+            data.append([track_author, track_name, track_url])
 
     if not os.path.isfile(lokalizacja+'/piosenki.txt'):  # jeśli lista nie istnieje pobiera wszystkie utwory
         file = open(lokalizacja+'/piosenki.txt', 'x', encoding='utf-8')
@@ -149,7 +176,7 @@ def download_and_modify(playlist, lokalizacja):
     print('-----  PODSUMOWANIE  -----')
     if len_to_download == 0 and len_to_remove == 0:
         print('* Brak zmian.')
-        app.print_status(message='* Brak zmian.')
+        # app.print_status(message='* Brak zmian.')
     else:
         if len_to_download == 0:
             print('* Brak nowych piosenek.')
@@ -191,19 +218,26 @@ def download_and_modify(playlist, lokalizacja):
             print(f"** W czasie: {display_time}.{seconds}{time_unit}")
             message[2] = f"** W czasie: {display_time}.{seconds}{time_unit}"
 
-        app.print_status(f'{message[0]}\n{message[1]}\n{message[2]}')
+        #app.print_status(f'{message[0]}\n{message[1]}\n{message[2]}')
 
 
-def main(path: str, url: str):
+def main():  # path: str, url: str):
     # https://open.spotify.com/playlist/6FS9fW1oI9TKtwnxJtbwRa?si=9585d20479f440f2
-    print(path)
-    print(url)
+    # print(path)
+    # print(url)
+
+    playlist, data_type = get_tracks_details("https://open.spotify.com/album/6yiXkzHvC0OTmhfDQOEWtS")
+    lokalizacja = "D:/Pobrane/spot"
+    print(list(playlist))
+    download_and_modify(playlist, lokalizacja, data_type)
+
     '''    ^^^ TEST ONLY ^^^    '''
-    playlist = get_tracks_details(url)
-    if playlist:
-        download_and_modify(playlist, path)
+    # playlist = get_tracks_details(url)
+    # if playlist:
+    #     download_and_modify(playlist, path)
 
 
 if __name__ == "__main__":
-    app = App(get_music_folder_path=get_music_folder_path, ask_for_directory=ask_for_directory, main=main)
-    app.mainloop()
+    main()
+    # app = App(get_music_folder_path=get_music_folder_path, ask_for_directory=ask_for_directory, main=main)
+    # app.mainloop()
