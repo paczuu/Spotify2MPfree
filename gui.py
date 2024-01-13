@@ -149,7 +149,7 @@ class App(ctk.CTk):
         #                                  f"loc: {self.location}, url: {url}")
 
         if correct_url and correct_location:  # wszystko ok
-            self.print_error_message(message="* ALL GOOD")
+            # self.print_error_message(message="* ALL GOOD")
             self.main(self.location, url)
 
 

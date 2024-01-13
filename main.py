@@ -49,21 +49,44 @@ def get_tracks_details(url):
 
     # Inicjalizacja autoryzacji
     client_credentials_manager = SpotifyClientCredentials(client_id=client_id, client_secret=client_secret)
-    sp = Spotify(client_credentials_manager=client_credentials_manager)
+    # sp = Spotify(client_credentials_manager=client_credentials_manager)
+    sp = Spotify(auth_manager=client_credentials_manager)
 
     # Pobieranie informacji o playlisty
     url_id = url.split('/')[-1]
+
     try:
         if 'track' in url:
             data = sp.track(url_id)
             data_type = 'track'
         elif 'playlist' in url:
-            data = sp.playlist_tracks(url_id)
+            data = []
+            results = sp.playlist_tracks(url_id, limit=80)
+
+            # Add the tracks from the initial request to the list
+            data.extend(results['items'])
+
+            # Check if there are more tracks to retrieve
+            while results['next']:
+                results = sp.next(results)
+                data.extend(results['items'])
+
+
             data_type = 'playlist'
         elif 'album' in url:
             data = [[], []]
             data[0] = sp.album(url_id)['name']  # pobiera nazwe albumu
-            data[1] = sp.album_tracks(url_id)
+            # data[1] = sp.album_tracks(url_id)  # pobiera max 100
+            results = sp.album_tracks(url_id, limit=80)
+
+            # Add the tracks from the initial request to the list
+            data[1].extend(results['items'])
+
+            # Check if there are more tracks to retrieve
+            while results['next']:
+                results = sp.next(results)
+                data[1].extend(results['items'])
+
             data_type = 'album'
         return data, data_type
     except Exception as e:
@@ -72,6 +95,59 @@ def get_tracks_details(url):
 
 # pobiera nowe utwory, te krórych nie ma w playliscie przenosci do "Stare"
 def download_and_modify(playlist, lokalizacja, data_type):
+    def print_summary():
+        end_time = time()
+        len_to_remove = len(to_remove)
+        len_to_download = len(to_download)
+
+        message = ['', '', '']
+        print('-----  PODSUMOWANIE  -----')
+        if len_to_download == 0 and len_to_remove == 0:
+            print('* Brak zmian.')
+            # app.print_status(message='* Brak zmian.')
+        else:
+            if len_to_download == 0:
+                print('* Brak nowych piosenek.')
+                message[0] = '* Brak nowych piosenek.'
+            elif len_to_download == 1:
+                print(f'* Pobrano {len_to_download} nową piosenkę.')
+                message[0] = f'* Pobrano {len_to_download} nową piosenkę.'
+            elif 1 < len_to_download <= 4:
+                print(f'* Pobrano {len_to_download} nowe piosenki.')
+                message[0] = f'* Pobrano {len_to_download} nowe piosenki.'
+            elif len_to_download >= 5:
+                print(f'* Pobrano {len_to_download} nowych piosenek.')
+                message[0] = f'* Pobrano {len_to_download} nowych piosenek.'
+
+            if len_to_remove == 1:
+                print(f'* Usunięto {len_to_remove} piosenkę.')
+                message[1] = f'* Usunięto {len_to_remove} piosenkę.'
+            elif 1 < len_to_remove <= 4:
+                print(f'* Usunięto {len_to_remove} piosenki.')
+                message[1] = f'* Usunięto {len_to_remove} piosenki.'
+            elif len_to_remove >= 5:
+                print(f'* Usunięto {len_to_remove} piosenek.')
+                message[1] = f'* Usunięto {len_to_remove} piosenek.'
+
+            elapsed_time = int(end_time - start_time)
+            if elapsed_time < 60:
+                display_time = elapsed_time
+                print(f"** W czasie: {display_time}s")
+                message[2] = f"** W czasie: {display_time}s"
+            else:
+                if elapsed_time < 3600:
+                    time_unit = "m"
+                    display_time = elapsed_time // 60
+                    seconds = elapsed_time % 60
+                else:
+                    time_unit = "h"
+                    display_time = elapsed_time // 3600
+                    seconds = elapsed_time % 3600
+                print(f"** W czasie: {display_time}.{seconds}{time_unit}")
+                message[2] = f"** W czasie: {display_time}.{seconds}{time_unit}"
+
+            # app.print_status(f'{message[0]}\n{message[1]}\n{message[2]}')
+
     def download(to_download):
         lokalizacja_stare = lokalizacja + '/Stare/'
         os.chdir(lokalizacja)  # zmiana lokalizacji na Spotify
@@ -82,25 +158,27 @@ def download_and_modify(playlist, lokalizacja, data_type):
         for counter, (track_url, file_name) in enumerate(to_download, start=1):
             print(f'* Pobieranie {counter} z {total}')
 
-
-            if os.path.isfile(lokalizacja_stare + file_name):  # jeżeli piosenka znajduje się w "Stare" to przeniesie ją zamiast ppbierać
+            # jeżeli piosenka znajduje się w "Stare" to przeniesie ją zamiast ppbierać
+            if os.path.isfile(lokalizacja_stare + file_name):
                 move_to = lokalizacja + '/' + file_name
                 shutil.move(lokalizacja_stare + file_name, move_to)
             else:
-                # app.print_status(message=f'* Pobieranie {counter} z {total}')
+                app.print_status(message=f'* Pobieranie {counter} z {total}')
                 os.system(f'spotdl {track_url}')
                 if data_type == 'playlist':
                     file.write(f'{track_url}    {file_name}\n')
         if data_type == 'playlist':
             file.close()
+        print_summary()
 
     def remove(to_remove):
-        if not os.path.exists(lokalizacja+'/Stare'):
-            os.mkdir(lokalizacja+'/Stare')
+        if len(to_remove):
+            if not os.path.exists(lokalizacja+'/Stare'):
+                os.mkdir(lokalizacja+'/Stare')
 
-        os.chdir(lokalizacja)  # zmiana lokalizacji na Spotify
-        for file in to_remove:
-            shutil.move(file, lokalizacja+'/Stare/'+file)
+            os.chdir(lokalizacja)  # zmiana lokalizacji na Spotify
+            for file in to_remove:
+                shutil.move(file, lokalizacja+'/Stare/'+file)
 
     start_time = time()
 
@@ -123,7 +201,7 @@ def download_and_modify(playlist, lokalizacja, data_type):
             lokalizacja += '/'+album_name
             if not os.path.exists(lokalizacja):  # czy katalog istnieje
                 os.mkdir(lokalizacja)
-        for track in playlist[1]['items']:
+        for track in playlist[1]:
             track_name = track['name']
             track_url = track['external_urls']['spotify']
             track_author = track['artists'][0]['name']
@@ -131,90 +209,32 @@ def download_and_modify(playlist, lokalizacja, data_type):
         return download(to_download)
 
     else:  # data_type == 'playlist'
-        for track in playlist['items']:
+        for track in playlist:
             track_name = track['track']['name']
             track_url = track['track']['external_urls']['spotify']
             track_author = track['track']['artists'][0]['name']
             data.append([track_author, track_name, track_url])
 
-    if not os.path.isfile(lokalizacja+'/piosenki.txt'):  # jeśli lista nie istnieje pobiera wszystkie utwory
-        file = open(lokalizacja+'/piosenki.txt', 'x', encoding='utf-8')
 
-        for track_author, track_name, track_url in data:
-            to_download.append((track_url, f'{track_author} - {track_name}.mp3'))
-            file.write(f'{track_url}    {track_author} - {track_name}\n')
-        file.close()
-        download(to_download)
-    else:
-        old_file = open(lokalizacja+'/piosenki.txt', 'r', encoding='utf-8')
-        old_file = [line.strip() for line in old_file.readlines()]  # dzielenie na linie
-        old_file = [line.split('    ') for line in old_file]  # dzielenie na url i tytuł
+        existing_tracks = [file for file in os.listdir(lokalizacja) if file.endswith('.mp3')]
+        if not existing_tracks:
+            for track_author, track_name, track_url in data:
+                to_download.append((track_url, f'{track_author} - {track_name}.mp3'))
+            return download(to_download)
 
         for track_author, track_name, track_url in data:  # określenie piosenek do pobrania
-            if not any(track_url == link[0] for link in old_file):
+            if not any(f'{track_author} - {track_name}.mp3' == track for track in existing_tracks):
                 to_download.append((track_url, f'{track_author} - {track_name}.mp3'))
-        for track_url, track_name in old_file:  # określenie piosenek do usunięcia
-            if not any(track_url == link[2] for link in data):
-                to_remove.append(track_name + '.mp3')
+        for track in existing_tracks:  # określenie piosenek do usunięcia
+            if not any(track == f'{track_author} - {track_name}.mp3' for track_author, track_name, track_url in data):
+                to_remove.append(track)
 
         remove(to_remove)
         download(to_download)
 
-    end_time = time()
-    len_to_remove = len(to_remove)
-    len_to_download = len(to_download)
-
-    message = ['', '', '']
-    print('-----  PODSUMOWANIE  -----')
-    if len_to_download == 0 and len_to_remove == 0:
-        print('* Brak zmian.')
-        # app.print_status(message='* Brak zmian.')
-    else:
-        if len_to_download == 0:
-            print('* Brak nowych piosenek.')
-            message[0] = '* Brak nowych piosenek.'
-        elif len_to_download == 1:
-            print(f'* Pobrano {len_to_download} nową piosenkę.')
-            message[0] = f'* Pobrano {len_to_download} nową piosenkę.'
-        elif 1 < len_to_download <= 4:
-            print(f'* Pobrano {len_to_download} nowe piosenki.')
-            message[0] = f'* Pobrano {len_to_download} nowe piosenki.'
-        elif len_to_download >= 5:
-            print(f'* Pobrano {len_to_download} nowych piosenek.')
-            message[0] = f'* Pobrano {len_to_download} nowych piosenek.'
-
-        if len_to_remove == 1:
-            print(f'* Usunięto {len_to_remove} piosenkę.')
-            message[1] = f'* Usunięto {len_to_remove} piosenkę.'
-        elif 1 < len_to_remove <= 4:
-            print(f'* Usunięto {len_to_remove} piosenki.')
-            message[1] = f'* Usunięto {len_to_remove} piosenki.'
-        elif len_to_remove >= 5:
-            print(f'* Usunięto {len_to_remove} piosenek.')
-            message[1] = f'* Usunięto {len_to_remove} piosenek.'
-
-        elapsed_time = int(end_time - start_time)
-        if elapsed_time < 60:
-            display_time = elapsed_time
-            print(f"** W czasie: {display_time}s")
-            message[2] = f"** W czasie: {display_time}s"
-        else:
-            if elapsed_time < 3600:
-                time_unit = "m"
-                display_time = elapsed_time // 60
-                seconds = elapsed_time % 60
-            else:
-                time_unit = "h"
-                display_time = elapsed_time // 3600
-                seconds = elapsed_time % 3600
-            print(f"** W czasie: {display_time}.{seconds}{time_unit}")
-            message[2] = f"** W czasie: {display_time}.{seconds}{time_unit}"
-
-        #app.print_status(f'{message[0]}\n{message[1]}\n{message[2]}')
-
 
 def main(path: str, url: str):  #):  #
-    # https://open.spotify.com/playlist/6FS9fW1oI9TKtwnxJtbwRa?si=9585d20479f440f2
+    # https://open.spotify.com/playlist/73WF2YDYoyIjFNnHE7SMK9?si=03dd6ecd41124267
     # print(path)
     # print(url)
 
